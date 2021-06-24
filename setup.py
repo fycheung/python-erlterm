@@ -2,16 +2,16 @@
 
 from distutils.core import setup
 
-from erlastic import __version__ as version
+from erlterm import __version__ as version
 
 setup(
-    name = 'erlastic',
+    name = 'erlterm',
     version = version,
-    description = 'Erlastic',
-    author = 'Samuel Stauffer',
-    author_email = 'samuel@descolada.com',
-    url = 'http://github.com/samuel/python-erlastic',
-    packages = ['erlastic'],
+    description = 'ErlTerm',
+    author = 'fycheung',
+    author_email = 'fycheung@163.com',
+    url = 'http://github.com/samuel/python-erlterm',
+    packages = ['erlterm'],
     classifiers = [
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
