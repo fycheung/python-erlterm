@@ -2,57 +2,38 @@
 
 ## Usage ##
 
-Erlastic allows you to serialize/deserialize python objects into 
+此库可以实现把erlang数据序列化后的binary（erlang:term_to_binary()）转换成python的可识别的结构，或者把python数据序列化成erlang的binary格式，erlang可以通过binary_to_term反序列数据。
+兼容otp22的类型定义，序列化atom类型时候python统一使用utf8形式。
+
 [erlang binary term](http://erlang.org/doc/apps/erts/erl_ext_dist.html).
 
 Basic usage is :
+
+    need python3.x 
     
     import erlastic
     py_struct = erlastic.decode(binary_term)
     binary = erlastic.encode(py_struct)
 
-## Erlang Port communication usage
 
-The library contains also a function to use python with erlastic in an erlang
-port to communicate erlang binary term : `port_communication()` which return
-`(mailbox,port)`. They are both python coroutines (executed generator) so you
-can communicate with erlang coroutine using python abstractions :
-
-- `mailbox` waits for port message in stdin, iterating over messages decoded
-   from binary erlang term format.
-- `port` waits for `send(python_struct)` (http://docs.python.org/3.3/reference/expressions.html#generator.send)
-  then encode `python_struct` into binary term format and send it to the erlang port via stdout.
-
-So for instance, if you want to create a Python server which
-receives the tuple {A,B} and return {ok,A/B} of {error,divisionbyzero} 
-you can use at the python side :
-
-    from erlastic import port_connection,Atom as A
-    mailbox,port = port_connection()
+example:
+```
+    binary: [131,116,0,0,0,5,100,0,1,97,100,0,1,97,100,0,1,100,107,0,
+            4,1,2,3,4,104,2,100,0,1,99,100,0,1,99,104,3,100,0,1,99,
+            100,0,1,99,100,0,1,99,107,0,1,98,107,0,3,98,98,98,109,0,
+            0,0,3,97,98,99,109,0,0,0,3,97,98,99]
     
-    for (a,b) in mailbox:
-      port.send((A("ok"),a/b) if b!=0 else (A("error"),A("divisionbyzero")))
+    python_print_format:
+            #{a => a,d => [1, 2, 3, 4],{c,c} => {c,c,c},"b" => "bbb",<<97,98,99>> => <<97,98,99>>}
+    
+    erl_format:
+            #{a => a,
+            d => [1,2,3,4],
+            {c,c} => {c,c,c},
+            "b" => "bbb",<<"abc">> => <<"abc">>}
+```
 
-and at the erlang side, use `-u` python parameter to prevent python output
-buffering, use 4 bytes packet length because it is the configuration used by
-the python generators.
 
-    Port = open_port({spawn,"python3 -u add_server.py"},[binary,{packet,4}]),
-    Div = fun(A,B)->
-      Port ! {self(),{command,term_to_binary({A,B})}},
-      receive {Port,{data,Bin}}->binary_to_term(Bin) after 1000->{error,timeout} end
-    end,
-    io:format("send {A,B}=~p, python result : ~p~n",[{32,10},Div(32,10)]),
-    io:format("send {A,B}=~p, python result : ~p~n",[{2,0},Div(2,0)]),
-    io:format("send {A,B}=~p, python result : ~p~n",[{1,1},Div(1,1)])
-
-or in elixir :
-
-    port = Port.open({:spawn,'python3 -u add_server.py'},[:binary|[packet: 4]])
-    div = fn(a,b)->
-      port <- {self,{:command,term_to_binary({a,b})}}
-      receive do {_,{:data,b}} -> binary_to_term(b) after 100->{:error,:timeout} end
-    end
-    IO.puts "send {a,b}={32,10}, python result : #{inspect div.(32,10)}"
-    IO.puts "send {a,b}={2,0}, python result : #{inspect div.(2,0)}"
-    IO.puts "send {a,b}={1,1}, python result : #{inspect div.(1,1)}"
+自定义的python兼容类型：
+    自定义类型在erlastic.types.py, 主要增加了一些特殊兼容的类型，例如ErlString, 在erlang中没有字符串类型，
+    此处使用了个兼容类型区分，然后大部分类型在pyhton类型基础上重写了__str__方法，方便打印出和erlang中一样的格式。
