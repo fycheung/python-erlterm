@@ -33,6 +33,7 @@ example:
             "b" => "bbb",<<"abc">> => <<"abc">>}
 ```
 
-types：
+types:
+
     自定义类型在erlterm.types.py, 主要增加了一些特殊兼容的类型，例如ErlString, 在erlang中没有字符串类型，
     此处使用了个兼容类型区分(erlang中由可见字符组成的列表对应python中的ErlString),，然后大部分类型在pyhton类型基础上重写了__str__方法，方便打印出和erlang中一样的格式。
