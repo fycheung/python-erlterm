@@ -2,33 +2,28 @@
 
 import unittest
 
-from erlastic import decode, encode
-from erlastic.types import *
+from erlterm import decode, encode
+from erlterm.types import *
 
 erlang_term_binaries = [
     # nil
     ([], list, b"\x83j"),
     # binary
-    (b"foo", bytes, b'\x83m\x00\x00\x00\x03foo'),
+    (Binary(b"foo"), Binary, b'\x83m\x00\x00\x00\x03foo'),
     # atom
-    (Atom("foo"), Atom, b'\x83d\x00\x03foo'),
-    # atom true
-    (True, bool, b'\x83d\x00\x04true'),
-    # atom false
-    (False, bool, b'\x83d\x00\x05false'),
-    # atom none
-    (None, type(None), b'\x83d\x00\x04none'),
+    (Atom("foo"), Atom, b'\x83w\x03foo'),
     # small integer
     (123, int, b'\x83a{'),
     # integer
     (12345, int, b'\x83b\x00\x0009'),
+    # bytes
+    (b'foo', bytes, b'\x83m\x00\x00\x00\x03foo'),
     # float
     (1.2345, float, b'\x83c1.23449999999999993072e+00\x00\x00\x00\x00\x00'),
     # tuple
-    ((Atom("foo"), b"test", 123), tuple, b'\x83h\x03d\x00\x03foom\x00\x00\x00\x04testa{'),
+    ((Atom("foo"), b"test", 123), tuple, b'\x83h\x03w\x03foom\x00\x00\x00\x04testa{'),
     # list
     ([1024, b"test", 4.096], list, b'\x83l\x00\x00\x00\x03b\x00\x00\x04\x00m\x00\x00\x00\x04testc4.09600000000000008527e+00\x00\x00\x00\x00\x00j'),
-    ([102, 111, 111], list, b'\x83l\x00\x00\x00\x03afaoaoj'),
     # small big
     (12345678901234567890, int, b'\x83n\x08\x00\xd2\n\x1f\xeb\x8c\xa9T\xab'),
     # large big
@@ -42,30 +37,36 @@ erlang_term_binaries = [
     (PID('nonode@nohost', 31, 0, 0), PID, b'\x83gd\x00\rnonode@nohost\x00\x00\x00\x1f\x00\x00\x00\x00\x00'),
     # function export
     (Export('jobqueue', 'stats', 0), Export, b'\x83qd\x00\x08jobqueued\x00\x05statsa\x00'),
+    
+    ({Atom('a'): Atom('a'), Atom('d'): [1,2,3,4], (Atom('c'), Atom('c')): (Atom('c'), Atom('c'), Atom('c')), ErlString('b'): ErlString('bbb'), Binary(b'abc'): Binary(b'abc')},
+    dict,
+    b'\x83t\x00\x00\x00\x05w\x01aw\x01aw\x01dk\x00\x04\x01\x02\x03\x04h\x02w\x01cw\x01ch\x03w\x01cw\x01cw\x01ck\x00\x01bk\x00\x03bbbm\x00\x00\x00\x03abcm\x00\x00\x00\x03abc'
+    )
 ]
 
-erlang_term_decode = [
-    ## ext_string is an optimized way to send list of bytes, so not bijective (no erlang representation), only decode
-    (bytes([102, 111, 111]), bytes, b'\x83k\x00\x03foo')
+# str only support ascii
+erlang_decode_to_python = [
+    (ErlString("foo"), ErlString, b'\x83k\x00\x03foo')
 ]
 
-
-erlang_term_encode = [
-    ## python3 choice : encode string as binary utf-8, so not bijective (decoded binary utf-8 is of type "bytes()"), only encode
-    ("foo", str, b'\x83m\x00\x00\x00\x03foo')
+python_encode_to_erlang = [
+    ([102, 111, 111], list, b'\x83k\x00\x03foo'),
+    (ErlString("foo"), ErlString, b'\x83k\x00\x03foo')
 ]
 
 class ErlangTestCase(unittest.TestCase):
     def testDecode(self):
-        for python, expected_type, erlang  in erlang_term_binaries + erlang_term_decode:
+        for python, expected_type, erlang  in erlang_term_binaries + erlang_decode_to_python:
             decoded = decode(erlang)
             self.assertEqual(python, decoded)
             self.assertTrue(isinstance(decoded, expected_type))
 
     def testEncode(self):
-        for python, expected_type, erlang  in erlang_term_binaries + erlang_term_encode:
+        for python, expected_type, erlang  in erlang_term_binaries + python_encode_to_erlang:
             encoded = encode(python)
             self.assertEqual(erlang, encoded)
+
+
 
 if __name__ == '__main__':
     unittest.main()
