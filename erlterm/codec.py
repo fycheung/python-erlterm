@@ -7,7 +7,7 @@ import zlib
 from erlterm.constants import *
 from erlterm.types import *
 
-__all__ = ["ErlangTermEncoder", "ErlangTermDecoder", "EncodingError"]
+__all__ = ["ErlangTermEncoder", "ErlangTermDecoder", "ErlangStrDecoder", "EncodingError"]
 
 class EncodingError(Exception):
     pass
@@ -126,7 +126,7 @@ class ErlangTermDecoder(object):
         if tail != []:
             # TODO: Not sure what to do with the tail
             raise NotImplementedError("Lists with non empty tails are not supported")
-        return items, offset
+        return List(items), offset
 
     def decode_109(self, buf, offset):
         """BINARY_EXT"""
@@ -231,6 +231,186 @@ class ErlangTermDecoder(object):
         #     return None
         return Atom(atom.decode(encoding))
     
+
+def inspect_strip(func):
+    def inspect_strip1(obj):
+        obj.skip_space()
+        rt = func(obj)
+        obj.skip_space()
+        return rt
+    return inspect_strip1
+
+def ascii_list_to_bytes(ascii_list):
+    return "".join([chr(c) for c in ascii_list])
+
+class ErlangStrDecoder(object):
+    def parse(self, s):
+        s = s.strip()
+
+        if not s:
+            return ""
+
+        self.i = 0
+        self.n = len(s)
+        self.s = s
+
+        return self.parse_value()
+    
+    @inspect_strip
+    def parse_value(self):
+        if self.c() == "[":
+            self.i += 1
+            return self.parse_list()
+
+        elif self.c() == "{":
+            self.i += 1
+            return self.parse_tuple()
+
+        elif self.c() == "#" and self.c(1) == "{" :
+            self.i += 2
+            return self.parse_map()
+
+        elif self.c() == "<" and self.c(1) == "<" and self.c(2) == "\"":
+            self.i += 3
+            return self.parse_simple_binary()
+
+        elif self.c() == "<" and self.c(1) == "<" :
+            self.i += 2
+            return self.parse_binary()
+
+        elif self.c() == "\"":
+            self.i += 1
+            return self.parse_str()
+
+        elif self.is_digit() or self.c() == "-":
+            return self.parse_num()
+
+        elif self.c() == "'":
+            self.i += 1
+            return self.parse_atom_with_single_quotes()
+
+        elif self.c() >= 'a' and self.c() <= 'z':
+            return self.parse_atom()
+
+        else:
+            raise NotImplementedError("not supported format at index:%s,char:%s"%(self.i, self.c()))
+
+    def parse_list(self):
+        rt = []
+        while self.c() != "]":
+            rt.append(self.parse_value())
+            if self.c() == ",":
+                self.i += 1
+            
+        self.i += 1
+        return rt
+
+    def parse_tuple(self):
+        rt = []
+        while self.c() != "}":
+            rt.append(self.parse_value())
+            if self.c() == ",":
+                self.i += 1
+        self.i += 1
+        return Tuple(rt)
+
+    def parse_binary(self):
+        rt = []
+        while self.c() != ">" and self.c(1) != ">":
+            self.skip_space()
+            rt.append(self.parse_num())
+            self.skip_space()
+            if self.c() == ",":
+                self.i += 1
+        self.i += 2
+        return Binary(rt)
+
+    def parse_simple_binary(self):
+        Str = self.parse_str()
+        if self.c() == ">" and self.c(1) == ">":
+            self.i += 2
+            return Binary(Str, "utf8")
+        else:
+            raise NotImplementedError("not supported binary end at:%s"%Str)
+
+
+    def parse_str(self):
+        start = self.i
+        while self.c() != '"':
+            if self.is_escape_char():
+                self.i += 2
+            else:
+                self.i += 1
+        self.i += 1
+        return ErlString(self.s[start:self.i-1])
+
+
+    def parse_num(self):
+        is_negative = False
+        is_float = False
+        if self.c() == "-":
+            is_negative = True
+            self.i += 1
+        start = self.i
+        while self.i < self.n and (self.is_digit() or self.c() == '.'):
+            if self.c() == '.':
+                is_float = True
+            self.i += 1
+
+        if is_float:
+            rt = float(self.s[start:self.i])
+        else:
+            rt = int(self.s[start:self.i])
+
+        return -rt if is_negative else rt
+
+    def parse_map(self):
+        rt = {}
+        while self.c() != "}":
+            k = self.parse_value()
+            if self.c() == "=" and self.c(1) == ">":
+                self.i += 2
+            rt[k] = self.parse_value()
+            if self.c() == ",":
+                self.i += 1
+
+        return Maps(rt)
+
+    def parse_atom(self):
+        start = self.i
+        while self.i < self.n and \
+              ((self.c() >= 'a' and self.c() <= 'z') or \
+               (self.c() >= 'A' and self.c() <= 'Z') or \
+               self.is_digit() or \
+               self.c() == '_' or self.c() == '@'):
+            self.i += 1
+        return Atom(self.s[start:self.i])
+
+    def parse_atom_with_single_quotes(self):
+        start = self.i
+        while self.c() != "'":
+            if self.is_escape_char():
+                self.i += 2
+            else:
+                self.i += 1
+        self.i += 1
+        return Atom(self.s[start:self.i-1])
+
+    def is_digit(self):
+        return self.c() >= "0" and self.c() <= "9"
+
+    def skip_space(self):
+        while self.i < self.n and self.c().isspace():
+            self.i += 1
+
+    def c(self, offset=0):
+        return self.s[self.i+offset]
+
+    def is_escape_char(self):
+        escape_char = ['"', '\'','\\', '/',
+                        'b', 'f', 'n', 'r', 't']
+        return self.c() == "\\" and self.c(1) in escape_char
+
 
 class ErlangTermEncoder(object):
     def __init__(self, encoding="utf-8", unicode_type="binary"):
