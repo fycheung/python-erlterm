@@ -1,19 +1,53 @@
 
 __all__ = ['Atom', 'Binary', 'Tuple', 'Maps', 'ErlString',
-           'Reference', 'Port', 'PID', 'Export']
+           'Reference', 'Port', 'PID', 'Export', 'List']
+
+
 
 class Atom(str):
     def __str__(self):
         return super(Atom, self).__str__()
 
+    def is_simple_atom(self):
+        if not (self[0] >= 'a' and self[0] <= 'z'):
+            return False
+
+        for c in self:
+            if (c >= 'a' and c <= 'z') or \
+              (c >= 'A' and c <= 'Z') or \
+              (c >= '0' and c <= '9') or \
+              c == '_' or c == '@':
+                continue
+            else:
+                return False
+        return True
+
     def __repr__(self):
-        return "Atom(%s)" % super(Atom, self).__repr__()
+        if self.is_simple_atom():
+            return "Atom(%s)" % super(Atom, self).__repr__()
+        else:
+            return "Atom(%s)" % super(Atom, self).__repr__()
+
+    def __str__(self):
+        if self.is_simple_atom():
+            return super(Atom, self).__str__()
+        else:
+            return "'%s'"%  super(Atom, self).__str__()
 
 class Binary(bytes):
+    def is_visible(self):
+        for c in self:
+            if c < 32 or c > 126:
+                return False
+        return True
+
     def __str__(self):
-        b = self.hex()
-        num_list = [str(int(b, 16)) for b in [b[i:i+2] for i in range(0, len(b), 2)]]
-        return "<<"+",".join(num_list)+">>"
+        # b = self.hex()
+        # num_list = [str(int(b, 16)) for b in [b[i:i+2] for i in range(0, len(b), 2)]]
+        if self.is_visible():
+            return "<<\"%s\">>"% super(Binary, self).__str__()[2:-1]
+        else:
+            return "<<%s>>"%(",".join([str(c) for c in self]), )
 
 class Tuple(tuple):
     def __str__(self) -> str:
@@ -22,6 +56,10 @@ class Tuple(tuple):
 class Maps(dict):
     def __str__(self) -> str:
         return "#{%s}"%(",".join(["%s => %s"%(k,v) for k,v in self.items()]),)
+
+class List(list):
+    def __str__(self) -> str:
+        return "[%s]"%(",".join([str(item) for item in self]),)
 
 # visible simple string
 class ErlString(str):
