@@ -1,4 +1,4 @@
-# Erlastic #
+# Erlterm #
 
 ## Usage ##
 
