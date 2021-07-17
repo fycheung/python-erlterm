@@ -4,6 +4,8 @@
 
 此库可以实现把erlang数据序列化后的binary（erlang:term_to_binary()）转换成python的可识别的结构，或者把python数据序列化成erlang的binary格式，erlang可以通过binary_to_term反序列数据。
 兼容otp22的类型定义，序列化atom类型时候python统一使用utf8形式。
+另外也新增了codec.ErlangStrDecoder类，用于使用python直接解析文本形式的erlang结构。
+
 
 [erlang binary term](http://erlang.org/doc/apps/erts/erl_ext_dist.html).
 
@@ -13,6 +15,7 @@ Basic usage is :
     
     import erlterm
     py_struct = erlterm.decode(binary_term)
+    py_struct = decode_from_str(str(py_struct))
     binary = erlterm.encode(py_struct)
 
 
