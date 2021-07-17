@@ -4,12 +4,12 @@
 __version__ = "2.0.0"
 __license__ = "BSD"
 
-from erlterm.codec import ErlangTermDecoder, ErlangTermEncoder
+from erlterm.codec import ErlangTermDecoder, ErlangTermEncoder, ErlangStrDecoder
 from erlterm.types import *
 
 encode = ErlangTermEncoder().encode
 decode = ErlangTermDecoder().decode
-
+decode_from_str = ErlangStrDecoder().parse
 # import struct
 # import sys
 # def mailbox_gen():
